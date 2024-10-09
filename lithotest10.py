@@ -97,7 +97,7 @@ with st.expander("¿Cómo utilizar esta aplicación?"):
 # Agrega más secciones o detalles según lo necesario
 
 # Cargar archivo LAS o ZIP
-uploaded_file = st.file_uploader("Sube un archivo ZIP o un archivo LAS", type=["zip", "las"])
+uploaded_file = st.file_uploader("Sube un archivo ZIP que contenga los registros .LAS", type=["zip", "las"])
 
 pozos_data = {}
 
@@ -229,4 +229,4 @@ if len(pozos_data) > 0:
         st.pyplot(fig_pairplot)
 
 else:
-    st.info("Sube un archivo LAS o ZIP para comenzar.")
+    st.info("Sube un archivo ZIP que contenga los registros .LAS")
