@@ -1,4 +1,5 @@
 streamlit
+<<<<<<< HEAD
 lasio
 pandas
 numpy
@@ -9,3 +10,9 @@ plotly
 fastdtw
 seaborn
 openpyxl
+=======
+pandas
+matplotlib
+seaborn
+scikit-learn
+>>>>>>> b5aa07041eae2d5defc4e709c0e70b93cd5ca2b3
