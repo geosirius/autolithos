@@ -1,0 +1,11 @@
+streamlit
+lasio
+pandas
+numpy
+matplotlib
+dtaidistance
+scikit-learn
+plotly
+fastdtw
+seaborn
+openpyxl
