@@ -87,7 +87,7 @@ with st.expander("Curvas utilizadas en la interpretación"):
 
 with st.expander("¿Cómo utilizar esta aplicación?"):
     st.write("""
-    1. **Carga de archivos**: Los archivos de registro de pozos deben estar en formato `.las` y comprimidos en un archivo ZIP.
+    1. **Carga de archivos**: Los archivos de registro de pozos deben estar en formato `.las` y comprimidos en un archivo ZIP. Estos registros deben contener al menos dos de las curvas mencionadas anteriormente.
     
     2. **Clustering no supervisado**: La aplicación permite aplicar diferentes algoritmos de clustering, como K-Means y Gaussian Mixture Model (GMM), para agrupar los datos en base a las propiedades de las formaciones rocosas.
 
