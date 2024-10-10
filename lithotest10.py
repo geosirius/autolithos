@@ -6,12 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import seaborn as sns
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import MinMaxScaler
 import io
 
-# Cargar el logo desde la URL
+# Cargar el logo
 st.image("https://energycouncil.com/wp-content/uploads/Pan-American-Energy.png", width=150)
 
 # Función para leer archivos LAS directamente
@@ -56,7 +56,6 @@ def leer_archivos_las_zip(uploaded_file):
     
     return pozos_data
 
-
 # Descripción del proyecto
 st.markdown("<h2 style='text-align: center; color: #2E86C1;'>Clustering no supervisado en datos de registro de pozos</h2>", unsafe_allow_html=True)
 
@@ -94,8 +93,6 @@ with st.expander("¿Cómo utilizar esta aplicación?"):
     3. **Interpretación visual**: A partir del clustering, se generan gráficos que muestran las agrupaciones de las formaciones y cómo estas se correlacionan con las curvas de las propiedades físicas, facilitando la identificación de zonas con características geológicas similares.
     """)
 
-# Agrega más secciones o detalles según lo necesario
-
 # Cargar archivo LAS o ZIP
 uploaded_file = st.file_uploader("Sube un archivo ZIP que contenga los registros .LAS", type=["zip", "las"])
 
@@ -113,91 +110,108 @@ if uploaded_file:
 if len(pozos_data) > 0:
     st.subheader("Selección de Pozos")
 
-    # Selección de pozos antes de realizar el clustering
+    # Selección de pozos
     pozo_nombres = list(pozos_data.keys())
     pozos_seleccionados = st.multiselect("Selecciona los pozos a utilizar para el análisis", pozo_nombres, default=pozo_nombres)
 
     if len(pozos_seleccionados) > 0:
         # Mostrar las columnas disponibles
         columnas_disponibles = list(pozos_data[pozos_seleccionados[0]].columns)
-
-        # Validar si las columnas predeterminadas están en el dataset
         curvas_predeterminadas = ["RES_DEEP", "GR", "RHOB", "NPHI"]
         curvas_predeterminadas_validas = [col for col in curvas_predeterminadas if col in columnas_disponibles]
-
-        # Mostrar las curvas seleccionables con las predeterminadas que están en el dataset
         curvas_seleccionadas = st.sidebar.multiselect("Selecciona las curvas para clustering", columnas_disponibles, default=curvas_predeterminadas_validas)
 
-        # Parámetros de Clustering
         st.sidebar.header("Parámetros de Clustering")
         n_clusters = st.sidebar.slider("Selecciona el número de clusters para KMeans y GMM", 2, 10, 5)
 
-        # Selección de pozo para graficar
-        pozo_seleccionado = st.sidebar.selectbox("Selecciona el pozo a graficar", pozos_seleccionados)
+        # Parámetros para DBSCAN
+        st.sidebar.header("Parámetros para DBSCAN")
+        eps = st.sidebar.slider("Selecciona el parámetro eps (radio máximo)", 0.1, 10.0, 0.5)
+        min_samples = st.sidebar.slider("Selecciona el número mínimo de muestras por cluster", 1, 20, 5)
 
-        # Clustering K-Means
+        # Parámetros para Agglomerative Clustering
+        st.sidebar.header("Parámetros para Clustering Jerárquico")
+        n_clusters_ag = st.sidebar.slider("Selecciona el número de clusters para Clustering Jerárquico", 2, 10, 5)
+        linkage_method = st.sidebar.selectbox("Selecciona el método de enlace", ["ward", "complete", "average", "single"])
+
+        # Selección de métodos de clustering
+        metodos_clustering = st.sidebar.multiselect(
+            "Selecciona los métodos de clustering a incluir en el análisis", 
+            ['KMeans', 'GMM', 'DBSCAN', 'Agglomerative'], 
+            default=['KMeans', 'GMM', 'DBSCAN', 'Agglomerative']
+        )
+
+        pozo_seleccionado = st.sidebar.selectbox("Selecciona el pozo a graficar", pozos_seleccionados)
         clustering_results = {}
 
         for pozo in pozos_seleccionados:
             df = pozos_data[pozo]
-
-            # Filtrar las curvas seleccionadas para asegurar que existen en el DataFrame
             curvas_validas = [curva for curva in curvas_seleccionadas if curva in df.columns]
-
-            # Verificar si hay curvas válidas disponibles
             if len(curvas_validas) == 0:
                 st.warning(f"No se encontraron curvas válidas para el pozo {pozo}.")
                 continue
-
             df_nonan = df[curvas_validas].dropna()
 
-            # Normalización de curvas (opcional)
+            # Normalización de curvas
             normalizar = st.sidebar.checkbox("Normalizar curvas", value=False)
             if normalizar:
                 scaler = MinMaxScaler()
                 df_nonan = pd.DataFrame(scaler.fit_transform(df_nonan), columns=curvas_validas, index=df_nonan.index)
 
-            # Clustering
-            kmeans = KMeans(n_clusters=n_clusters)
-            kmeans.fit(df_nonan)
-            df['KMeans'] = np.nan
-            df.loc[df_nonan.index, 'KMeans'] = kmeans.labels_
+            # Aplicar los métodos de clustering seleccionados
+            columnas_clustering = []  # Lista para almacenar los métodos aplicados y sus etiquetas
 
-            gmm = GaussianMixture(n_components=n_clusters)
-            etiquetas_gmm = gmm.fit_predict(df_nonan)
-            df['GMM'] = np.nan
-            df.loc[df_nonan.index, 'GMM'] = etiquetas_gmm
+            # Clustering KMeans
+            if 'KMeans' in metodos_clustering:
+                kmeans = KMeans(n_clusters=n_clusters)
+                kmeans.fit(df_nonan)
+                df['KMeans'] = np.nan
+                df.loc[df_nonan.index, 'KMeans'] = kmeans.labels_
+                columnas_clustering.append('KMeans')
+
+            # Clustering GMM
+            if 'GMM' in metodos_clustering:
+                gmm = GaussianMixture(n_components=n_clusters)
+                etiquetas_gmm = gmm.fit_predict(df_nonan)
+                df['GMM'] = np.nan
+                df.loc[df_nonan.index, 'GMM'] = etiquetas_gmm
+                columnas_clustering.append('GMM')
+
+            # Clustering DBSCAN
+            if 'DBSCAN' in metodos_clustering:
+                dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+                dbscan_labels = dbscan.fit_predict(df_nonan)
+                df['DBSCAN'] = np.nan
+                df.loc[df_nonan.index, 'DBSCAN'] = dbscan_labels
+                columnas_clustering.append('DBSCAN')
+
+            # Clustering Agglomerative
+            if 'Agglomerative' in metodos_clustering:
+                agglomerative_clustering = AgglomerativeClustering(n_clusters=n_clusters_ag, linkage=linkage_method)
+                agglomerative_labels = agglomerative_clustering.fit_predict(df_nonan)
+                df['Agglomerative'] = np.nan
+                df.loc[df_nonan.index, 'Agglomerative'] = agglomerative_labels
+                columnas_clustering.append('Agglomerative')
 
             clustering_results[pozo] = df
 
-        # Selector de profundidades
         st.sidebar.header("Selector de Profundidades")
         profundidad_min = st.sidebar.number_input("Profundidad mínima", min_value=int(df.index.min()), max_value=int(df.index.max()), value=int(df.index.min()))
         profundidad_max = st.sidebar.number_input("Profundidad máxima", min_value=int(df.index.min()), max_value=int(df.index.max()), value=int(df.index.max()))
 
-        # Filtrar los resultados por el rango de profundidad seleccionado
         datos_filtrados = clustering_results[pozo_seleccionado][(clustering_results[pozo_seleccionado].index >= profundidad_min) & (clustering_results[pozo_seleccionado].index <= profundidad_max)]
 
-        # Visualización
         st.subheader("Resultados del Clustering")
 
         def graficar_clusters(nombre_pozo, dataframe, curva_profundidad, curvas_a_graficar, curvas_facies=[]):
-            colores_facies = ['#F4D03F', '#F5B041', '#DC7633', '#6E2C00', '#1B4F72', '#2E86C1', '#AED6F1', 
-                              '#A569BD', '#196F3D', 'red', 'black', 'blue']
+            colores_facies = ['#F4D03F', '#F5B041', '#DC7633', '#6E2C00', '#1B4F72', '#2E86C1', '#AED6F1', '#A569BD', '#196F3D', 'red', 'black', 'blue']
             num_tracks = len(curvas_a_graficar)
-            
             fig, ax = plt.subplots(nrows=1, ncols=num_tracks, figsize=(num_tracks * 2, 10))
             fig.suptitle(nombre_pozo, fontsize=20, y=1.05)
 
             for i, curva in enumerate(curvas_a_graficar):
                 if curva in curvas_facies:
-                    # Convertir el valor de max a entero y manejar casos NaN
-                    max_cluster = dataframe[curva].max()
-                    if pd.isna(max_cluster):
-                        max_cluster = 1
-                    else:
-                        max_cluster = int(max_cluster)
-                    
+                    max_cluster = int(dataframe[curva].max()) if not pd.isna(dataframe[curva].max()) else 1
                     cmap_facies = colors.ListedColormap(colores_facies[:max_cluster], 'indexed')
                     cluster = np.repeat(np.expand_dims(dataframe[curva].values, 1), 100, 1)
                     ax[i].imshow(cluster, interpolation='none', cmap=cmap_facies, aspect='auto',
@@ -209,7 +223,6 @@ if len(pozos_data) > 0:
                 ax[i].set_title(curva, fontsize=14, fontweight='bold')
                 ax[i].grid(which='major', color='lightgrey', linestyle='-')
                 ax[i].set_ylim(curva_profundidad.max(), curva_profundidad.min())
-
                 if i == 0:
                     ax[i].set_ylabel('Profundidad (m)', fontsize=18, fontweight='bold')
                 else:
@@ -217,16 +230,15 @@ if len(pozos_data) > 0:
             plt.tight_layout()
             return fig
 
-        # Graficar los resultados
-        fig = graficar_clusters(pozo_seleccionado, datos_filtrados, datos_filtrados.index, curvas_validas + ['KMeans', 'GMM'], curvas_facies=['KMeans', 'GMM'])
+        # Graficar resultados solo de las columnas de clustering que han sido aplicadas
+        fig = graficar_clusters(pozo_seleccionado, datos_filtrados, datos_filtrados.index, curvas_validas + columnas_clustering, curvas_facies=columnas_clustering)
         st.pyplot(fig)
 
-        # Pairplot para visualizar los clusters
         st.subheader("Pairplot para visualizar los clusters")
-        metodo_clustering = st.selectbox("Selecciona el método de clustering", ['KMeans', 'GMM'])
-        
-        fig_pairplot = sns.pairplot(datos_filtrados, vars=curvas_validas, hue=metodo_clustering, palette='Dark2')
-        st.pyplot(fig_pairplot)
+        if columnas_clustering:
+            metodo_clustering = st.selectbox("Selecciona el método de clustering", columnas_clustering)
+            fig_pairplot = sns.pairplot(datos_filtrados, vars=curvas_validas, hue=metodo_clustering, palette='Dark2')
+            st.pyplot(fig_pairplot)
 
 else:
     st.info("Sube un archivo ZIP que contenga los registros .LAS")
